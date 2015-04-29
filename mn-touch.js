@@ -7,7 +7,7 @@
  *
  */ 
 
-angular.module('mn', []).directive('mnTouch', ['$timeout', function($timeout){
+angular.module('mn', []).directive('mnTouch', ['$timeout', '$rootScope', function($timeout, $rootScope){
 	var touchEngine = function(scope, element, attrs){
 		scope.$event = {
 			target: element[0],
@@ -89,6 +89,7 @@ angular.module('mn', []).directive('mnTouch', ['$timeout', function($timeout){
 				scope.$event.isRunning = true;
 				scope.$event.events.start = startEvent;
 				scope.$event.coords.start = getCoords(startEvent);
+				scope.tapHoldMoveOccured = false;
 
 				if (!!attrs['hold']){
 					$timeout(function(){
@@ -99,15 +100,33 @@ angular.module('mn', []).directive('mnTouch', ['$timeout', function($timeout){
 						$timeout(function(){
 							if (scope.$event.isRunning){
 								onMoveEvent(startEvent);
+								$rootScope.$broadcast('touch:hold-end', scope.$event);
 							}
 						}, 32, false);
-					}, scope.$event.holdfor, false);
+					}, scope.$event.holdfor , false);
+
+					var captureEvent = function(e) {
+						scope.$event.target.removeEventListener(scope.$event.types.move, captureEvent, false);
+						scope.tapHoldMoveOccured = true;
+					}
+
+					if (scope.$event.isRunning){
+						scope.$event.target.addEventListener(scope.$event.types.move, captureEvent, false);
+					}
+					$timeout(function() {
+						if(!scope.tapHoldMoveOccured && scope.$event.isRunning) {
+							$rootScope.$broadcast('touch:hold-start', scope.$event);
+						} else {
+							$rootScope.$broadcast('touch:hold-start-cancel', scope.$event);
+						}
+					}, 250);
 				}
 			};
 
 			var onEndEvent = function(endEvent, isHold){
 				if (scope.$event.isRunning){
 					scope.$event.isRunning = false;
+					$rootScope.$broadcast('touch:hold-end', scope.$event);
 					scope.$event.events.end = endEvent;
 					scope.$event.coords.end = getCoords(endEvent);
 					scope.$event.directionX = scope.$event.coords.end.x - scope.$event.coords.start.x;
